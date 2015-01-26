@@ -10,7 +10,7 @@ TLS kleptography demo using ryancdotorg's rsabd.py (https://gist.github.com/ryan
  - To bind to privileged ports without root:
     setcap 'cap_net_bind_service=+ep' /usr/bin/python3
 
-1. generate public/private keypair for TeS, email them link
+1. generate public/private keypair for victim, email them link
  - Browse to https://evil-ca.com on server
  - ./ca.py victim-site.com
 
