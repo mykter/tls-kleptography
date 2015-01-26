@@ -1,0 +1,36 @@
+./rsabd.py 
+./rsabd.py | openssl rsa -text
+
+command line demo:
+./rsaby.py > priv.key
+generate public key from private | encrypt
+generate public key from private | generate private from public | decrypt
+
+
+TLS kleptography demo:
+0. Setup: 4xVMs
+ - Evil-CA (https://evil-ca.com).
+ - Web server (https://victim-site.com)
+ - User - root cert installed in browser
+ - MITM
+ 
+ - appropriate /etc/hosts entries for ca + victim domains in user and MITM machines
+ - To bind to privileged ports without root:
+    setcap 'cap_net_bind_service=+ep' /usr/bin/python3
+
+1. generate public/private keypair for TeS, email them link
+ - Browse to https://evil-ca.com on server
+ - ./ca.py victim-site.com
+
+2. set up website
+ - browse to webserver, download cert + privkey
+ - save files in appropriate location
+ - run ./serve.py victim-site.com.crt victim-site.com.key
+
+3. set up fake website
+ ./clone.py victim-site.com
+
+4. MITM
+ - arp poison / edit /etc/hosts
+
+5. Browse to website again on user machine
