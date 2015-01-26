@@ -1,17 +1,9 @@
-./rsabd.py 
-./rsabd.py | openssl rsa -text
+TLS kleptography demo using ryancdotorg's [rsabd.py](https://gist.github.com/ryancdotorg/9bd3873e488740f86ebb):
 
-command line demo:
-./rsaby.py > priv.key
-generate public key from private | encrypt
-generate public key from private | generate private from public | decrypt
-
-
-TLS kleptography demo:
 0. Setup: 4xVMs
  - Evil-CA (https://evil-ca.com).
  - Web server (https://victim-site.com)
- - User - root cert installed in browser
+ - User - CA root cert installed in browser
  - MITM
  
  - appropriate /etc/hosts entries for ca + victim domains in user and MITM machines
