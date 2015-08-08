@@ -12,6 +12,7 @@ openssl x509 -req -days 365 -in poc.csr -signkey poc.key -out poc.crt
 import sys
 import argparse
 import gmpy
+import logging
 
 import curve25519
 
@@ -111,27 +112,52 @@ def generate_from_seed(seed, ephem_pub):
     ephem_pub = bytes(ephem_pub)
 
     # deterministic key generation from seed
-    return build_key(embed=ephem_pub, pos=POS, randfunc=prng.randbytes)
+    logging.debug("Seed: {}".format(hexlify(seed)))
+    logging.debug("Embedding public key: {}".format(hexlify(ephem_pub)))
+    k= build_key(embed=ephem_pub, pos=POS, randfunc=prng.randbytes)
+    logging.debug("Resulting modulus: {:X}".format(k.n))
+    return k
 
 def generate_new_key():
     (seed, ephem_pub) = generate_new_seed()
     return generate_from_seed(seed, ephem_pub)
 
-def get_private_from_public(pubkey, pos=POS):
-    orig_modulus = unhexlify(pubkey.get_modulus())
+def get_private_from_modulus(modulus, pos=POS):
+    orig_modulus = unhexlify(modulus)
     (seed, ephem_pub) = recover_seed(key=None, modulus=orig_modulus, pos=pos)
     rsa = generate_from_seed(seed, ephem_pub)
 
     if long(hexlify(orig_modulus), 16) != long(rsa.n):
-        raise Exception("key recovery failed")
+        raise Exception("key recovery failed\noriginal modulus:   {}\nrecovered seed: {}\ncalculated modulus: {:X}\n".format(modulus,hexlify(seed),long(rsa.n)))
 
     return rsa
+
+def get_modulus_from_gpg(cert):
+    import pgpdump, types
+    try:
+        data = pgpdump.BinaryData(cert)
+    except pgpdump.utils.PgpdumpException:
+        data = pgpdump.AsciiData(cert)
+
+    public_gpg_keys = [packet for packet in data.packets() if type(packet) == pgpdump.packet.PublicKeyPacket]
+    if len(public_gpg_keys) != 1:
+        raise(Exception("Found {} gpg public keys, require exactly 1, aborting.".format(len(public_gpg_keys))))
+        
+    return public_gpg_keys[0].modulus
+        
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Generate and reverse backdoor-ed RSA keys. Output private key on stdout.')
     parser.add_argument('--generate', action='store_true', help='Generate a new backdoor-ed key (default: reverse an existing certificate)')
+    parser.add_argument('--gpg', action='store_true', help='Generate a new backdoor-ed key and output p & q')
+    parser.add_argument('--debug', action='store_true', help='Print debug info to stderr')
     parser.add_argument('certificate', nargs='?', type=argparse.FileType('r'), help='Certificate file containing the key to reverse, if --generate is not specified (cert can alternatively be passed on stdin).')
     args = parser.parse_args()
+
+    if args.debug:
+        logging.basicConfig(level=logging.DEBUG)
+    else:
+        logging.basicConfig(level=logging.INFO)
 
     if args.generate:
         rsa = generate_new_key()
@@ -143,9 +169,19 @@ if __name__ == "__main__":
             certstr = sys.stdin.read()
 
         # Parse input as x.509 certificate
-        x509 = X509.load_cert_string(certstr)
+        if args.gpg:
+            modulus = "{:X}".format(get_modulus_from_gpg(certstr))
+        else:
+            x509 = X509.load_cert_string(certstr)
+            modulus = x509.get_pubkey().get_modulus()
 
         # Reverse
-        rsa = get_private_from_public(x509.get_pubkey())
+        rsa = get_private_from_modulus(modulus)
 
-    print rsa.exportKey()
+    if args.generate and args.gpg:
+        logging.debug("p: 00{:X}".format(rsa.p))
+        logging.debug("q: 00{:X}".format(rsa.q))
+        print("00{:X}".format(rsa.p))
+        print("00{:X}".format(rsa.q))
+    else:
+        print rsa.exportKey()
